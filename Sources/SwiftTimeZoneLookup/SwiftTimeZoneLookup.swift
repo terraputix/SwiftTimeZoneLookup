@@ -57,17 +57,27 @@ public final class SwiftTimeZoneLookup {
     /// Try with lower resolution first and use high resolution database if too close to the border
     private func highResLookup(latitude: Float, longitude: Float) -> UnsafeMutablePointer<ZoneDetectResult>? {
         var safezone: Float = .nan
-        guard let result = ZDLookup(database16, latitude, longitude, &safezone) else {
+    
+        guard let result16 = ZDLookup(database16, latitude, longitude, &safezone) else {
             return nil
         }
-        if safezone >= 0.0055*2 {
-            return result
+    
+        let lookupResult = result16.pointee.lookupResult
+        let hasValidMatch =
+            lookupResult == ZD_LOOKUP_IN_ZONE ||
+            lookupResult == ZD_LOOKUP_ON_BORDER_VERTEX ||
+            lookupResult == ZD_LOOKUP_ON_BORDER_SEGMENT
+    
+        if hasValidMatch && safezone >= 0.0055 * 2 {
+            return result16
         }
-        ZDFreeResults(result)
-        
+    
+        ZDFreeResults(result16)
+    
         guard let result21 = ZDLookup(database21, latitude, longitude, &safezone) else {
             return nil
         }
+    
         return result21
     }
     
@@ -110,50 +120,6 @@ public final class SwiftTimeZoneLookup {
     
     /// Resolve the timezone
     public func simple(latitude: Float, longitude: Float) -> String? {
-        if (36.2443...36.7389).contains(latitude) && (26.0019...26.7957).contains(longitude) {
-            // Astypalaia island in Greece does not resolve any timezone and would return nil
-            // Reasons unknown, could be an invalid polygon
-            return "Europe/Athens"
-        }
-        if (11.865393...12.474443).contains(latitude) && (-69.312710...(-68.613387)).contains(longitude) {
-            // Curacao island
-            return "America/Curacao"
-        }
-        
-        if let timezone = simpleUncorrected(latitude: latitude, longitude: longitude) {
-            return timezone
-        }
-        for delta in stride(from: Float(0.1), through: 2.35, by: 0.25) {
-            if let timezone = simpleUncorrected(latitude: latitude + delta, longitude: longitude) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude - delta, longitude: longitude) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude, longitude: longitude + delta) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude, longitude: longitude - delta) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude + delta, longitude: longitude + delta) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude - delta, longitude: longitude + delta) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude + delta, longitude: longitude - delta) {
-                return timezone
-            }
-            if let timezone = simpleUncorrected(latitude: latitude - delta, longitude: longitude - delta) {
-                return timezone
-            }
-        }
-        return nil
-    }
-    
-    /// Resolve the timezone without any corrections
-    private func simpleUncorrected(latitude: Float, longitude: Float) -> String? {
         guard let result = highResLookup(latitude: latitude, longitude: longitude) else {
             return nil
         }
