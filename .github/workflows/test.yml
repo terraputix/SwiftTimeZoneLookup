@@ -27,6 +27,7 @@ jobs:
       - uses: swift-actions/setup-swift@v3
         with:
           swift-version: ${{ matrix.swift }}
+          skip-verify-signature: true
       - name: Cache resolved dependencies
         id: cache-resolved-dependencies
         uses: actions/cache@v4
